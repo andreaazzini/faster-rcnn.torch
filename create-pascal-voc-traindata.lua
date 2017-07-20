@@ -1,10 +1,10 @@
--- specify the base path of the ILSVRC2015 dataset: 
-ILSVRC2015_BASE_DIR = 'data/imagenet/ILSVRC2015/'
+-- specify the base path of the PASCAL VOC dataset:
+PASCAL_VOC_BASE_DIR = '/datasets/pascal-voc/VOCdevkit/VOC2012/'
 
 require 'lfs'
 require 'LuaXML'      -- if missing use luarocks install LuaXML
 require 'utilities'
-require 'Rect' 
+require 'Rect'
 
 local ground_truth = {}
 local class_names = {}
@@ -20,42 +20,42 @@ function import_file(anno_base, data_base, fn, name_table)
   local sz = a:find('size')
   local w = tonumber(sz:find('width')[1])
   local h = tonumber(sz:find('height')[1])
-  
+
   for _,e in pairs(a) do
     if e[e.TAG] == 'object' then
-    
+
       local obj = e
       local name = obj:find('name')[1]
-      local bb = obj:find('bndbox') 
+      local bb = obj:find('bndbox')
       local xmin = tonumber(bb:find('xmin')[1])
       local xmax = tonumber(bb:find('xmax')[1])
       local ymin = tonumber(bb:find('ymin')[1])
       local ymax = tonumber(bb:find('ymax')[1])
-      
+
       if not class_index[name] then
         class_names[#class_names + 1] = name
-        class_index[name] = #class_names 
-      end 
-      
+        class_index[name] = #class_names
+      end
+
       -- generate path relative to annotation dir and join with data dir
-      local image_path = path.join(data_base, path.relpath(fn, anno_base))  
-      
+      local image_path = path.join(data_base, path.relpath(fn, anno_base))
+
       -- replace 'xml' file ending with 'JPEG'
-      image_path = string.sub(image_path, 1, #image_path - 3) .. 'JPEG'    
-      
+      image_path = string.sub(image_path, 1, #image_path - 3) .. 'jpg'
+
       table.insert(name_table, image_path)
-      
+
       local roi = {
         rect = Rect.new(xmin, ymin, xmax, ymax),
         class_index = class_index[name],
         class_name = name
       }
-      
+
       local file_entry = ground_truth[image_path]
       if not file_entry then
         file_entry = { image_file_name = image_path, rois = {} }
         ground_truth[image_path] = file_entry
-      end 
+      end
       table.insert(file_entry.rois, roi)
     end
   end
@@ -64,7 +64,7 @@ end
 function import_directory(anno_base, data_base, directory_path, recursive, name_table)
    for fn in lfs.dir(directory_path) do
     local full_fn = path.join(directory_path, fn)
-    local mode = lfs.attributes(full_fn, 'mode') 
+    local mode = lfs.attributes(full_fn, 'mode')
     if recursive and mode == 'directory' and fn ~= '.' and fn ~= '..' then
       import_directory(anno_base, data_base, full_fn, true, name_table)
       collectgarbage()
@@ -83,13 +83,13 @@ function create_ground_truth_file(dataset_name, base_dir, train_annotation_dir, 
   function expand(p)
     return path.join(base_dir, p)
   end
-  
+
   local training_set = {}
   local validation_set = {}
   import_directory(expand(train_annotation_dir), expand(train_data_dir), expand(train_annotation_dir), true, training_set)
   import_directory(expand(val_annotation_dir), expand(val_data_dir), expand(val_annotation_dir), true, validation_set)
   local file_names = keys(ground_truth)
-  
+
   -- compile list of background images
   local background_files = {}
   for i,directory_path in ipairs(background_dirs) do
@@ -97,13 +97,13 @@ function create_ground_truth_file(dataset_name, base_dir, train_annotation_dir, 
     for fn in lfs.dir(directory_path) do
       local full_fn = path.join(directory_path, fn)
       local mode = lfs.attributes(full_fn, 'mode')
-      if mode == 'file' and string.sub(fn, -5):lower() == '.jpeg' then
+      if mode == 'file' and string.sub(fn, -4):lower() == '.jpg' then
         table.insert(background_files, full_fn)
       end
     end
   end
-  
-  print(string.format('Total images: %d; classes: %d; train_set: %d; validation_set: %d; (Background: %d)', 
+
+  print(string.format('Total images: %d; classes: %d; train_set: %d; validation_set: %d; (Background: %d)',
     #file_names, #class_names, #training_set, #validation_set, #background_files
   ))
   save_obj(
@@ -121,19 +121,14 @@ function create_ground_truth_file(dataset_name, base_dir, train_annotation_dir, 
   print('Done.')
 end
 
-
-background_folders = {}
-for i=0,10 do
-  table.insert(background_folders, 'Data/DET/train/ILSVRC2013_train_extra' .. i)
-end
-
 create_ground_truth_file(
-  'ILSVRC2015_DET',
-  ILSVRC2015_BASE_DIR,
-  'Annotations/DET/train', 
-  'Annotations/DET/val',
-  'Data/DET/train',
-  'Data/DET/val',
-  background_folders,
-  'ILSVRC2015_DET.t7'
+  'voc',
+  PASCAL_VOC_BASE_DIR,
+  'train/annotations',
+  'val/annotations',
+  'train/images',
+  'val/images',
+  {},
+  'pascal_voc.t7'
 )
+
